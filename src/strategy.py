@@ -1,23 +1,24 @@
 class Strategy:
     def __init__(self):
-        self.prev = None
-        self.prev_prev = None
+        self.prev = {}
+        self.prev_prev = {}
 
-    def on_market(self, data):
+    def on_market(self, data,symbol):
 
-        # Step 1: if not enough data, just build history
-        if self.prev is None:
-            self.prev = data
+        if symbol not in self.prev:
+            self.prev[symbol] = data
             return None
 
-        if self.prev_prev is None:
-            self.prev_prev = self.prev
-            self.prev = data
+        if symbol not in self.prev_prev:
+            self.prev_prev[symbol] = self.prev[symbol]
+            self.prev[symbol] = data
             return None
 
-        # Step 2: generate signal using OLD data
-        diff1 = self.prev['EMA_20'] - self.prev['EMA_50']       # t-1
-        diff2 = self.prev_prev['EMA_20'] - self.prev_prev['EMA_50']  # t-2
+        prev=self.prev[symbol]
+        prev_prev=self.prev_prev[symbol]
+        
+        diff1 = prev['EMA_20'] - prev['EMA_50']       
+        diff2 = prev_prev['EMA_20'] - prev_prev['EMA_50']  
 
         if diff1 > 0 and diff2 < 0:
             signal = 'BUY'
@@ -26,8 +27,7 @@ class Strategy:
         else:
             signal = None
 
-        # Step 3: update state AFTER signal
-        self.prev_prev = self.prev
-        self.prev = data
+        self.prev_prev[symbol] = self.prev[symbol]
+        self.prev[symbol] = data
 
         return signal

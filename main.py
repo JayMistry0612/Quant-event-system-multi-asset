@@ -12,7 +12,11 @@ from src.execution import Execution
 from src.metrics import Metrics
 
 
-data=pd.read_parquet('data/lt_data.parquet')
+data={
+    'RELIANCE':pd.read_parquet('data/RELIANCE.parquet')
+    ,'LT':pd.read_parquet('data/LT.parquet')
+    ,'HDFCBANK':pd.read_parquet('data/HDFCBANK.parquet')
+}
 
 queue=EventQueue()
 data_handler=DataHandler(data)
@@ -20,31 +24,37 @@ strategy=Strategy()
 portfolio=Portfolio()
 execution=Execution()
 
+last_data = {}
+
 while True:
-    row = data_handler.stream_next()
-    if row is None:
+    batch = data_handler.stream_next()
+    if batch is None:
         break
-    queue.put(MarketEvent(row))
+    for symbol,row in batch.items():
+        last_data[symbol]=row
+        queue.put(MarketEvent(row,symbol))
     
     while not queue.is_empty():
         event = queue.get()
         
         if event.type=='MARKET':
-            signal=strategy.on_market(event.data)
+            signal=strategy.on_market(event.data,event.symbol)
             
             if signal:
-                queue.put(SignalEvent(signal,event.data))
-            
-            portfolio.mark_to_market(event.data['Close'])
-            
+                queue.put(SignalEvent(signal,event.data,event.symbol))
+                        
         elif event.type=='SIGNAL':
             signal,price=execution.execute(event.signal,event.data)
-            queue.put(OrderEvent(signal,price))
+            queue.put(OrderEvent(signal,price,event.symbol))
         
         elif event.type=='ORDER':
-            portfolio.update(event.signal,event.price)
-if portfolio.position!=0:
-    portfolio.update('SELL',data_handler.current_row['Close'])
+            portfolio.update(event.signal,event.symbol,event.price)
+          
+        portfolio.mark_to_market(batch)    
+            
+for symbol in list(portfolio.positions.keys()):
+    last_price = last_data[symbol]['Close']
+    portfolio.update('SELL', symbol, last_price)
 
 metrics = Metrics(portfolio.profit_curve, portfolio.equity_curve)
 print('Sharpe Ratio:', metrics.sharpe_ratio())

@@ -1,29 +1,67 @@
 class Portfolio:
-    def __init__(self,capital=100000):
-        self.capital=capital
-        self.position=0
-        self.entry_price=0
-        self.equity_curve=[]
-        self.profit_curve=[]
-    def update(self,signal,price):
-        if signal=='BUY' and self.position==0:
-            self.entry_price=price    
-            self.position=self.capital/price
-        #    print(f"Entered position of {self.position} units at price {self.entry_price}")
-        elif signal=='SELL' and self.position>0:
-            exit_price=price
-            gross = self.position*(exit_price-self.entry_price)
-            cost = (0.001*exit_price*self.position)+(0.001*self.entry_price*self.position)
-            profit = gross-cost
-            self.capital+=profit
-            print("Entry price:",self.entry_price,"Exit price:",exit_price,"Profit:",profit,"Capital:",self.capital)
-        #    print(f"Exited position of {self.position} units at price {exit_price} with profit {profit}")
-            self.profit_curve.append(profit)
-            self.position=0
-    def mark_to_market(self,price):
-        if self.position!=0:
-            unrealized = self.position*(price-self.entry_price)
-            self.equity_curve.append(self.capital+unrealized)
-        else:
-            self.equity_curve.append(self.capital)            
-            
+    def __init__(self, capital=100000, cost_pct=0.0005, allocation_pct=0.2):
+        self.capital = capital
+        self.cost_pct = cost_pct
+        self.allocation_pct = allocation_pct
+
+        self.positions = {}       
+        self.entry_prices = {}    
+
+        self.equity_curve = []
+        self.profit_curve = []
+
+    def update(self, signal, symbol, price):
+        
+        if signal == 'BUY':
+            if symbol not in self.positions:
+
+                allocation = self.capital * self.allocation_pct
+                quantity = allocation / price
+
+                self.positions[symbol] = quantity
+                self.entry_prices[symbol] = price
+
+                cost = self.cost_pct * price * quantity
+                self.capital -= cost
+
+                print(f"BUY {symbol} @ {price}")
+
+        
+        elif signal == 'SELL':
+            if symbol in self.positions:
+
+                quantity = self.positions[symbol]
+                entry_price = self.entry_prices[symbol]
+
+                gross = quantity * (price - entry_price)
+
+                cost = (
+                    self.cost_pct * entry_price * quantity +
+                    self.cost_pct * price * quantity
+                )
+
+                profit = gross - cost
+                self.capital += profit
+
+                self.profit_curve.append(profit)
+
+                print(f"SELL {symbol} @ {price} | PnL: {profit}")
+
+                del self.positions[symbol]
+                del self.entry_prices[symbol]
+    def mark_to_market(self, batch):
+
+        unrealized = 0
+
+        for sym, qty in self.positions.items():
+            entry_price = self.entry_prices[sym]
+
+            if sym in batch:
+                current_price = batch[sym]['Close']
+            else:
+                continue  
+
+            unrealized += qty * (current_price - entry_price)
+
+        total_equity = self.capital + unrealized
+        self.equity_curve.append(total_equity)
