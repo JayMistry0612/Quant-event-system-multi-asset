@@ -52,16 +52,26 @@ class Portfolio:
     def mark_to_market(self, batch):
 
         unrealized = 0
+        symbols_to_remove = []
+        
 
         for sym, qty in self.positions.items():
             entry_price = self.entry_prices[sym]
-
-            if sym in batch:
-                current_price = batch[sym]['Close']
-            else:
-                continue  
+            current_price = batch[sym]['Close'] 
+            
+            if current_price<entry_price*0.98:
+                symbols_to_remove.append(sym)
+                continue 
+            
+            if current_price>entry_price*1.03:
+                symbols_to_remove.append(sym)
+                continue
 
             unrealized += qty * (current_price - entry_price)
+            
+        for sym in symbols_to_remove:
+            exit_price = batch[sym]['Close']
+            self.update('SELL', sym, exit_price)
 
         total_equity = self.capital + unrealized
         self.equity_curve.append(total_equity)
